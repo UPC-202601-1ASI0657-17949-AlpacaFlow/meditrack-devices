@@ -1,5 +1,5 @@
 # ETAPA 1: Construcción
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 # Copiamos todo el proyecto al contenedor
 COPY . .
 # Compilamos el proyecto (esto genera la carpeta /target)
