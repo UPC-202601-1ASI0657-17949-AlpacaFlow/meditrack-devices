@@ -1,11 +1,8 @@
-# Usamos Java 21
-FROM eclipse-temurin:21-jdk-alpine
+FROM maven:3.9-eclipse-temurin-17 AS build
+COPY . .
+RUN mvn clean package -DskipTests
 
-# Definimos dónde está el archivo compilado
-ARG JAR_FILE=target/*.jar
-
-# Copiamos el JAR al contenedor
-COPY ${JAR_FILE} app.jar
-
-# Comando para arrancar el servicio
+FROM eclipse-temurin:17-jre-alpine
+COPY --from=build /target/*.jar app.jar
+# Render usa la variable PORT, la exponemos
 ENTRYPOINT ["java", "-jar", "/app.jar"]
