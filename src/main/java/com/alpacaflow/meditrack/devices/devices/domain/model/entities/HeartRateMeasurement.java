@@ -28,9 +28,13 @@ public class HeartRateMeasurement extends Measurement {
     }
 
     public HeartRateMeasurement(int bpm) {
+        this(bpm, new HeartRateThreshold());
+    }
+
+    public HeartRateMeasurement(int bpm, HeartRateThreshold threshold) {
         super(EMeasurementType.HEART_RATE);
         this.bpm = bpm;
-        this.threshold = new HeartRateThreshold();
+        this.threshold = threshold;
     }
 
     /**

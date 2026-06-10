@@ -1,56 +1,61 @@
 package com.alpacaflow.meditrack.devices.devices.application.internal.commandservices;
 
+import com.alpacaflow.meditrack.devices.devices.application.internal.services.PatientThresholdResolver;
 import com.alpacaflow.meditrack.devices.devices.domain.exceptions.DeviceNotFoundException;
 import com.alpacaflow.meditrack.devices.devices.domain.model.aggregates.Device;
 import com.alpacaflow.meditrack.devices.devices.domain.model.commands.*;
 import com.alpacaflow.meditrack.devices.devices.domain.model.entities.*;
 import com.alpacaflow.meditrack.devices.devices.domain.model.events.AlertCreatedEvent;
+import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.PatientThresholdSnapshot;
 import com.alpacaflow.meditrack.devices.devices.domain.services.DeviceCommandService;
 import com.alpacaflow.meditrack.devices.devices.infrastructure.persistence.jpa.repositories.DeviceRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.Random;
 
-/**
- * Implementation of the DeviceCommandService interface.
- * <p>This class is responsible for handling the commands related to the Device aggregate. It requires a DeviceRepository.</p>
- * @see DeviceCommandService
- * @see DeviceRepository
- */
 @Service
 public class DeviceCommandServiceImpl implements DeviceCommandService {
     private final DeviceRepository deviceRepository;
+    private final PatientThresholdResolver patientThresholdResolver;
 
-    public DeviceCommandServiceImpl(DeviceRepository deviceRepository) {
+    public DeviceCommandServiceImpl(
+            DeviceRepository deviceRepository,
+            PatientThresholdResolver patientThresholdResolver) {
         this.deviceRepository = deviceRepository;
+        this.patientThresholdResolver = patientThresholdResolver;
+    }
+
+    @Override
+    @Transactional
+    public Long handle(RegisterDeviceCommand command) {
+        if (deviceRepository.existsById(command.deviceId())) {
+            return command.deviceId();
+        }
+        try {
+            deviceRepository.insertWithId(command.deviceId(), command.model(), command.holderId());
+            var device = deviceRepository.findById(command.deviceId())
+                    .orElseThrow(() -> new IllegalStateException("Device not found after insert"));
+            generateDemoMeasurements(device);
+            deviceRepository.saveAndFlush(device);
+            return device.getId();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error registering device: %s".formatted(e.getMessage()), e);
+        }
     }
 
     @Override
     public Long handle(CreateDeviceCommand command) {
         var device = new Device(command);
 
-        // Generate 7 demo measurements for each type (some inside, some outside safe ranges)
-        // Note: We generate measurements AFTER saving the device to ensure we have an ID
-        // But since measurements are part of the aggregate, we need to add them and save again
-        // Or better: generate them but don't trigger events that require ID until after save
-
-        // Strategy:
-        // 1. Save device first to get ID
-        // 2. Generate measurements and add to device
-        // 3. Save device again with measurements
-
         try {
-            // First save to get ID
             var savedDevice = deviceRepository.saveAndFlush(device);
             if (savedDevice.getId() == null) {
                 throw new IllegalStateException("Device ID is null after save");
             }
 
-            // Now generate measurements using the saved device (which has ID)
             generateDemoMeasurements(savedDevice);
-
-            // Save again with measurements
             savedDevice = deviceRepository.saveAndFlush(savedDevice);
 
             return savedDevice.getId();
@@ -59,214 +64,155 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
         }
     }
 
-    /**
-     * Generate 7 demo measurements for each measurement type
-     * Some values will be inside safe ranges, some slightly outside to demonstrate alerts
-     * @param device The device to add measurements to
-     */
     private void generateDemoMeasurements(Device device) {
+        var thresholds = patientThresholdResolver.resolveForDevice(device);
         Random random = new Random();
 
-        // Temperature: Safe range 35.0-38.0°C
-        // Generate 5 safe values and 2 values outside range
         double[] temperatures = {
-                36.0 + random.nextDouble() * 1.5,  // Safe: 36.0-37.5
-                36.2 + random.nextDouble() * 1.3,  // Safe: 36.2-37.5
-                36.5 + random.nextDouble() * 1.0,  // Safe: 36.5-37.5
-                35.8 + random.nextDouble() * 1.8,  // Safe: 35.8-37.6
-                36.3 + random.nextDouble() * 1.2,  // Safe: 36.3-37.5
-                38.2 + random.nextDouble() * 0.8,  // Unsafe: 38.2-39.0 (high)
-                34.2 + random.nextDouble() * 0.6   // Unsafe: 34.2-34.8 (low)
+                36.0 + random.nextDouble() * 1.5,
+                36.2 + random.nextDouble() * 1.3,
+                36.5 + random.nextDouble() * 1.0,
+                thresholds.minCelsius() + random.nextDouble() * 0.8,
+                thresholds.maxCelsius() - random.nextDouble() * 0.5,
+                thresholds.maxCelsius() + 0.5 + random.nextDouble() * 0.8,
+                thresholds.minCelsius() - 0.8 - random.nextDouble() * 0.6
         };
         for (double temp : temperatures) {
-            var measurement = new TemperatureMeasurement(temp);
-            if (measurement.surpassesThreshold()) {
-                device.addDomainEvent(new AlertCreatedEvent(device.getId(), temp, "TEMPERATURE"));
-            }
-            device.addTemperature(temp);
+            addTemperatureMeasurement(device, temp, thresholds);
         }
 
-        // Heart Rate: Safe range 50-120 bpm
-        // Generate 5 safe values and 2 values outside range
         int[] heartRates = {
-                60 + random.nextInt(40),   // Safe: 60-100
-                65 + random.nextInt(35),   // Safe: 65-100
-                70 + random.nextInt(30),   // Safe: 70-100
-                75 + random.nextInt(25),   // Safe: 75-100
-                55 + random.nextInt(45),   // Safe: 55-100
-                125 + random.nextInt(20),  // Unsafe: 125-145 (high)
-                40 + random.nextInt(8)     // Unsafe: 40-48 (low)
+                thresholds.minBpm() + random.nextInt(Math.max(1, thresholds.maxBpm() - thresholds.minBpm())),
+                thresholds.minBpm() + random.nextInt(Math.max(1, thresholds.maxBpm() - thresholds.minBpm())),
+                thresholds.minBpm() + random.nextInt(Math.max(1, thresholds.maxBpm() - thresholds.minBpm())),
+                thresholds.minBpm() + random.nextInt(Math.max(1, thresholds.maxBpm() - thresholds.minBpm())),
+                thresholds.minBpm() + random.nextInt(Math.max(1, thresholds.maxBpm() - thresholds.minBpm())),
+                thresholds.maxBpm() + 5 + random.nextInt(20),
+                Math.max(30, thresholds.minBpm() - 5 - random.nextInt(8))
         };
         for (int hr : heartRates) {
-            var measurement = new HeartRateMeasurement(hr);
-            if (measurement.surpassesThreshold()) {
-                device.addDomainEvent(new AlertCreatedEvent(device.getId(), hr, "HEART_RATE"));
-            }
-            device.addHeartRate(hr);
+            addHeartRateMeasurement(device, hr, thresholds);
         }
 
-        // Oxygen: Safe minimum 90%
-        // Generate 5 safe values and 2 values below threshold
         int[] oxygenLevels = {
-                95 + random.nextInt(5),    // Safe: 95-100
-                93 + random.nextInt(6),    // Safe: 93-99
-                94 + random.nextInt(5),    // Safe: 94-99
-                96 + random.nextInt(4),    // Safe: 96-100
-                92 + random.nextInt(7),    // Safe: 92-99
-                85 + random.nextInt(4),    // Unsafe: 85-89
-                82 + random.nextInt(5)     // Unsafe: 82-87
+                thresholds.minSpo2() + random.nextInt(Math.max(1, 100 - thresholds.minSpo2())),
+                thresholds.minSpo2() + random.nextInt(Math.max(1, 100 - thresholds.minSpo2())),
+                thresholds.minSpo2() + random.nextInt(Math.max(1, 100 - thresholds.minSpo2())),
+                thresholds.minSpo2() + random.nextInt(Math.max(1, 100 - thresholds.minSpo2())),
+                thresholds.minSpo2() + random.nextInt(Math.max(1, 100 - thresholds.minSpo2())),
+                Math.max(50, thresholds.minSpo2() - 5 - random.nextInt(4)),
+                Math.max(50, thresholds.minSpo2() - 8 - random.nextInt(5))
         };
         for (int spo2 : oxygenLevels) {
-            var measurement = new OxygenMeasurement(spo2);
-            if (measurement.surpassesThreshold()) {
-                device.addDomainEvent(new AlertCreatedEvent(device.getId(), spo2, "OXYGEN"));
-            }
-            device.addOxygen(spo2);
+            addOxygenMeasurement(device, spo2, thresholds);
         }
 
-        // Blood Pressure: Safe range 90-180 for both diastolic and systolic
-        // Generate 5 safe pairs and 2 pairs with at least one value outside range
         int[][] bloodPressures = {
-                {70 + random.nextInt(15), 110 + random.nextInt(25)},  // Safe: 70-85/110-135
-                {72 + random.nextInt(13), 115 + random.nextInt(20)},  // Safe: 72-85/115-135
-                {75 + random.nextInt(10), 120 + random.nextInt(15)},  // Safe: 75-85/120-135
-                {68 + random.nextInt(17), 112 + random.nextInt(23)},  // Safe: 68-85/112-135
-                {74 + random.nextInt(11), 118 + random.nextInt(17)},  // Safe: 74-85/118-135
-                {85 + random.nextInt(10), 185 + random.nextInt(15)},  // Unsafe: systolic high
-                {55 + random.nextInt(10), 95 + random.nextInt(20)}    // Unsafe: diastolic low
+                {70 + random.nextInt(15), 110 + random.nextInt(25)},
+                {72 + random.nextInt(13), 115 + random.nextInt(20)},
+                {75 + random.nextInt(10), 120 + random.nextInt(15)},
+                {68 + random.nextInt(17), 112 + random.nextInt(23)},
+                {74 + random.nextInt(11), 118 + random.nextInt(17)},
+                {85 + random.nextInt(10), 185 + random.nextInt(15)},
+                {55 + random.nextInt(10), 95 + random.nextInt(20)}
         };
         for (int[] bp : bloodPressures) {
-            int diastolic = bp[0];
-            int systolic = bp[1];
-            var measurement = new BloodPressureMeasurement(diastolic, systolic);
-            if (measurement.diastolicSurpassesThreshold()) {
-                device.addDomainEvent(new AlertCreatedEvent(device.getId(), diastolic, "BLOOD_PRESSURE"));
-            }
-            if (measurement.systolicSurpassesThreshold()) {
-                device.addDomainEvent(new AlertCreatedEvent(device.getId(), systolic, "BLOOD_PRESSURE"));
-            }
-            device.addBloodPressure(diastolic, systolic);
+            addBloodPressureMeasurement(device, bp[0], bp[1]);
         }
     }
 
     @Override
     public Optional<Device> handle(AddBloodPressureMeasurementToDeviceCommand command) {
-        var deviceOptional = deviceRepository.findById(command.deviceId());
-        if (deviceOptional.isEmpty()) {
-            throw new DeviceNotFoundException(command.deviceId());
-        }
-        var device = deviceOptional.get();
-
+        var device = getDeviceOrThrow(command.deviceId());
         if (device.existsMoreThanWeeklyMeasurementsOfType(BloodPressureMeasurement.class)) {
             device.removeLastMeasurementOfType(BloodPressureMeasurement.class);
         }
-
-        var measurement = new BloodPressureMeasurement(command.diastolic(), command.systolic());
-
-        if (measurement.diastolicSurpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), command.diastolic(), measurement.getType().toString()));
-        }
-        if (measurement.systolicSurpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), command.systolic(), measurement.getType().toString()));
-        }
-
-        device.addBloodPressure(command.diastolic(), command.systolic());
-
-        try {
-            deviceRepository.save(device);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error saving device: %s".formatted(e.getMessage()));
-        }
-
+        addBloodPressureMeasurement(device, command.diastolic(), command.systolic());
+        saveDevice(device);
         return Optional.of(device);
     }
 
     @Override
     public Optional<Device> handle(AddHeartRateMeasurementToDeviceCommand command) {
-        var deviceOptional = deviceRepository.findById(command.deviceId());
-        if (deviceOptional.isEmpty()) {
-            throw new DeviceNotFoundException(command.deviceId());
-        }
-        var device = deviceOptional.get();
-
+        var device = getDeviceOrThrow(command.deviceId());
         if (device.existsMoreThanWeeklyMeasurementsOfType(HeartRateMeasurement.class)) {
             device.removeLastMeasurementOfType(HeartRateMeasurement.class);
         }
-
-        var measurement = new HeartRateMeasurement(command.bpm());
-
-        if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), command.bpm(), measurement.getType().toString()));
-        }
-
-        device.addHeartRate(command.bpm());
-
-        try {
-            deviceRepository.save(device);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error saving device: %s".formatted(e.getMessage()));
-        }
-
+        var thresholds = patientThresholdResolver.resolveForDevice(device);
+        addHeartRateMeasurement(device, command.bpm(), thresholds);
+        saveDevice(device);
         return Optional.of(device);
     }
 
     @Override
     public Optional<Device> handle(AddTemperatureMeasurementToDeviceCommand command) {
-        var deviceOptional = deviceRepository.findById(command.deviceId());
-        if (deviceOptional.isEmpty()) {
-            throw new DeviceNotFoundException(command.deviceId());
-        }
-        var device = deviceOptional.get();
-
+        var device = getDeviceOrThrow(command.deviceId());
         if (device.existsMoreThanWeeklyMeasurementsOfType(TemperatureMeasurement.class)) {
             device.removeLastMeasurementOfType(TemperatureMeasurement.class);
         }
-
-        var measurement = new TemperatureMeasurement(command.celsius());
-
-        if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), command.celsius(), measurement.getType().toString()));
-        }
-
-        device.addTemperature(command.celsius());
-
-        try {
-            deviceRepository.save(device);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error saving device: %s".formatted(e.getMessage()));
-        }
-
+        var thresholds = patientThresholdResolver.resolveForDevice(device);
+        addTemperatureMeasurement(device, command.celsius(), thresholds);
+        saveDevice(device);
         return Optional.of(device);
     }
 
     @Override
     public Optional<Device> handle(AddOxygenMeasurementToDeviceCommand command) {
-        var deviceOptional = deviceRepository.findById(command.deviceId());
-        if (deviceOptional.isEmpty()) {
-            throw new DeviceNotFoundException(command.deviceId());
-        }
-        var device = deviceOptional.get();
-
+        var device = getDeviceOrThrow(command.deviceId());
         if (device.existsMoreThanWeeklyMeasurementsOfType(OxygenMeasurement.class)) {
             device.removeLastMeasurementOfType(OxygenMeasurement.class);
         }
+        var thresholds = patientThresholdResolver.resolveForDevice(device);
+        addOxygenMeasurement(device, command.spo2(), thresholds);
+        saveDevice(device);
+        return Optional.of(device);
+    }
 
-        var measurement = new OxygenMeasurement(command.spo2());
+    private Device getDeviceOrThrow(Long deviceId) {
+        return deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new DeviceNotFoundException(deviceId));
+    }
 
-        if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), command.spo2(), measurement.getType().toString()));
-        }
-
-        device.addOxygen(command.spo2());
-
+    private void saveDevice(Device device) {
         try {
             deviceRepository.save(device);
         } catch (Exception e) {
             throw new IllegalArgumentException("Error saving device: %s".formatted(e.getMessage()));
         }
+    }
 
-        return Optional.of(device);
+    private void addHeartRateMeasurement(Device device, int bpm, PatientThresholdSnapshot thresholds) {
+        var measurement = new HeartRateMeasurement(bpm, thresholds.heartRateThreshold());
+        if (measurement.surpassesThreshold()) {
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), bpm, measurement.getType().toString()));
+        }
+        device.addHeartRateMeasurement(measurement);
+    }
+
+    private void addTemperatureMeasurement(Device device, double celsius, PatientThresholdSnapshot thresholds) {
+        var measurement = new TemperatureMeasurement(celsius, thresholds.temperatureThreshold());
+        if (measurement.surpassesThreshold()) {
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), celsius, "TEMPERATURE"));
+        }
+        device.addTemperatureMeasurement(measurement);
+    }
+
+    private void addOxygenMeasurement(Device device, int spo2, PatientThresholdSnapshot thresholds) {
+        var measurement = new OxygenMeasurement(spo2, thresholds.oxygenThreshold());
+        if (measurement.surpassesThreshold()) {
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), spo2, "OXYGEN"));
+        }
+        device.addOxygenMeasurement(measurement);
+    }
+
+    private void addBloodPressureMeasurement(Device device, int diastolic, int systolic) {
+        var measurement = new BloodPressureMeasurement(diastolic, systolic);
+        if (measurement.diastolicSurpassesThreshold()) {
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), diastolic, "BLOOD_PRESSURE"));
+        }
+        if (measurement.systolicSurpassesThreshold()) {
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), systolic, "BLOOD_PRESSURE"));
+        }
+        device.addBloodPressure(diastolic, systolic);
     }
 }
-
-

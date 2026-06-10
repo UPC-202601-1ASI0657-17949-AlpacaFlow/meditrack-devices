@@ -69,7 +69,10 @@ public class Device extends AuditableAbstractAggregateRoot<Device> {
      * @param bpm The heart rate in beats per minute
      */
     public void addHeartRate(int bpm) {
-        var measurement = new HeartRateMeasurement(bpm);
+        addHeartRateMeasurement(new HeartRateMeasurement(bpm));
+    }
+
+    public void addHeartRateMeasurement(HeartRateMeasurement measurement) {
         this.measurements.add(measurement);
     }
 
@@ -78,7 +81,10 @@ public class Device extends AuditableAbstractAggregateRoot<Device> {
      * @param celsius The temperature in celsius
      */
     public void addTemperature(double celsius) {
-        var measurement = new TemperatureMeasurement(celsius);
+        addTemperatureMeasurement(new TemperatureMeasurement(celsius));
+    }
+
+    public void addTemperatureMeasurement(TemperatureMeasurement measurement) {
         this.measurements.add(measurement);
     }
 
@@ -87,7 +93,10 @@ public class Device extends AuditableAbstractAggregateRoot<Device> {
      * @param spo2 The oxygen saturation percentage
      */
     public void addOxygen(int spo2) {
-        var measurement = new OxygenMeasurement(spo2);
+        addOxygenMeasurement(new OxygenMeasurement(spo2));
+    }
+
+    public void addOxygenMeasurement(OxygenMeasurement measurement) {
         this.measurements.add(measurement);
     }
 

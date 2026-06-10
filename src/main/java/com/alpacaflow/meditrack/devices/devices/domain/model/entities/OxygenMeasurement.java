@@ -27,9 +27,13 @@ public class OxygenMeasurement extends Measurement {
     }
 
     public OxygenMeasurement(int spo2) {
+        this(spo2, new OxygenThreshold());
+    }
+
+    public OxygenMeasurement(int spo2, OxygenThreshold threshold) {
         super(EMeasurementType.OXYGEN);
         this.spo2 = spo2;
-        this.threshold = new OxygenThreshold();
+        this.threshold = threshold;
     }
 
     /**

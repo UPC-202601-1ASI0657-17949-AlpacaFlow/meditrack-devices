@@ -27,9 +27,13 @@ public class TemperatureMeasurement extends Measurement {
     }
 
     public TemperatureMeasurement(double celsius) {
+        this(celsius, new TemperatureThreshold());
+    }
+
+    public TemperatureMeasurement(double celsius, TemperatureThreshold threshold) {
         super(EMeasurementType.TEMPERATURE);
         this.celsius = celsius;
-        this.threshold = new TemperatureThreshold();
+        this.threshold = threshold;
     }
 
     /**

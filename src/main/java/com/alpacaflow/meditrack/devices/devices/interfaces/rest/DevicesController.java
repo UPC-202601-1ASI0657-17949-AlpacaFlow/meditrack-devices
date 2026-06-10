@@ -54,9 +54,26 @@ public class DevicesController {
         var getDeviceByIdQuery = new GetDeviceByIdQuery(deviceId);
         var device = deviceQueryService.handle(getDeviceByIdQuery);
         if (device.isEmpty()) return ResponseEntity.notFound().build();
-        var deviceEntity = device.get();
-        var deviceResource = DeviceResourceFromEntityAssembler.toResourceFromEntity(deviceEntity);
+        var deviceResource = DeviceResourceFromEntityAssembler.toResourceFromEntity(device.get());
         return new ResponseEntity<>(deviceResource, HttpStatus.CREATED);
+    }
+
+    /**
+     * Register a device with a predetermined id for a senior citizen (organization integration).
+     */
+    @PostMapping("/register")
+    @Operation(summary = "Register device for senior citizen", description = "Creates a device with a predetermined id and demo measurements")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Device registered"),
+            @ApiResponse(responseCode = "400", description = "Invalid input")})
+    public ResponseEntity<DeviceResource> registerDevice(@RequestBody RegisterDeviceResource resource) {
+        var command = RegisterDeviceCommandFromResourceAssembler.toCommandFromResource(resource);
+        var deviceId = deviceCommandService.handle(command);
+        if (deviceId == null || deviceId == 0L) return ResponseEntity.badRequest().build();
+        var device = deviceQueryService.handle(new GetDeviceByIdQuery(deviceId));
+        if (device.isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.status(deviceId.equals(resource.deviceId()) ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(DeviceResourceFromEntityAssembler.toResourceFromEntity(device.get()));
     }
 
     /**
