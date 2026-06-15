@@ -1,9 +1,11 @@
 package com.alpacaflow.meditrack.devices.application.internal.commandservices;
 
 import com.alpacaflow.meditrack.devices.devices.application.internal.commandservices.DeviceCommandServiceImpl;
+import com.alpacaflow.meditrack.devices.devices.application.internal.services.PatientThresholdResolver;
 import com.alpacaflow.meditrack.devices.devices.domain.exceptions.DeviceNotFoundException;
 import com.alpacaflow.meditrack.devices.devices.domain.model.aggregates.Device;
 import com.alpacaflow.meditrack.devices.devices.domain.model.commands.*;
+import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.PatientThresholdSnapshot;
 import com.alpacaflow.meditrack.devices.devices.infrastructure.persistence.jpa.repositories.DeviceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
+import org.mockito.junit.jupiter.MockitoSettings;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -20,10 +24,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DeviceCommandServiceImplTest {
 
     @Mock
     private DeviceRepository deviceRepository;
+
+    @Mock
+    private PatientThresholdResolver patientThresholdResolver;
 
     @InjectMocks
     private DeviceCommandServiceImpl deviceCommandService;
@@ -33,6 +41,8 @@ class DeviceCommandServiceImplTest {
     @BeforeEach
     void setUp() {
         device = new Device("Watch", 1L);
+        when(patientThresholdResolver.resolveForDevice(any(Device.class)))
+                .thenReturn(PatientThresholdSnapshot.defaults());
     }
 
     @Test

@@ -19,6 +19,11 @@ public interface DeviceCommandService {
     Long handle(CreateDeviceCommand command);
 
     /**
+     * Register a device with a predetermined id for an existing senior citizen.
+     */
+    Long handle(RegisterDeviceCommand command);
+
+    /**
      * Handle an add blood pressure measurement to device command
      * @param command The command containing the measurement data
      * @return The updated device
