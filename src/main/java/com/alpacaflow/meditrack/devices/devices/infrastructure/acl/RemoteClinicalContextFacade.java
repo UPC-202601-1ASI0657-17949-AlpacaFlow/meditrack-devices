@@ -7,9 +7,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Optional;
 
 @Component
@@ -19,9 +21,18 @@ public class RemoteClinicalContextFacade implements ClinicalContextFacade {
 
     private final RestClient restClient;
 
-    public RemoteClinicalContextFacade(@Value("${app.clinical.base-url}") String baseUrl) {
+    public RemoteClinicalContextFacade(
+            @Value("${app.clinical.base-url}") String baseUrl,
+            @Value("${app.clinical.connect-timeout-seconds:3}") int connectTimeoutSeconds,
+            @Value("${app.clinical.read-timeout-seconds:5}") int readTimeoutSeconds) {
         var normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        this.restClient = RestClient.builder().baseUrl(normalizedBaseUrl).build();
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(Math.max(connectTimeoutSeconds, 1)));
+        requestFactory.setReadTimeout(Duration.ofSeconds(Math.max(readTimeoutSeconds, 1)));
+        this.restClient = RestClient.builder()
+                .baseUrl(normalizedBaseUrl)
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Override
