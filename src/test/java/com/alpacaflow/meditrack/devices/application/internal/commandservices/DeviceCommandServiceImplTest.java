@@ -5,6 +5,7 @@ import com.alpacaflow.meditrack.devices.devices.application.internal.services.Pa
 import com.alpacaflow.meditrack.devices.devices.domain.exceptions.DeviceNotFoundException;
 import com.alpacaflow.meditrack.devices.devices.domain.model.aggregates.Device;
 import com.alpacaflow.meditrack.devices.devices.domain.model.commands.*;
+import com.alpacaflow.meditrack.devices.devices.domain.model.entities.HeartRateMeasurement;
 import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.PatientThresholdSnapshot;
 import com.alpacaflow.meditrack.devices.devices.infrastructure.persistence.jpa.repositories.DeviceRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import org.mockito.quality.Strictness;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -96,12 +98,14 @@ class DeviceCommandServiceImplTest {
     }
 
     @Test
-    void shouldRemoveOldMeasurementWhenMoreThanSeven() {
-        for (int i = 0; i < 8; i++) {
-            device.addHeartRate(70 + i);
+    void shouldRemoveOldestMeasurementWhenAtCapacity() {
+        for (int i = 0; i < Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE; i++) {
+            var measurement = new HeartRateMeasurement(70 + i);
+            measurement.setMeasuredAt(LocalDateTime.now().minusMinutes(Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE - i));
+            device.addHeartRateMeasurement(measurement);
         }
 
-        var command = new AddHeartRateMeasurementToDeviceCommand(90, 1L);
+        var command = new AddHeartRateMeasurementToDeviceCommand(200, 1L);
 
         when(deviceRepository.findById(1L))
                 .thenReturn(Optional.of(device));
@@ -111,7 +115,9 @@ class DeviceCommandServiceImplTest {
 
         deviceCommandService.handle(command);
 
-        assertEquals(8,
+        assertEquals(Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE,
                 device.getHeartRateMeasurements().size());
+        assertTrue(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 200));
+        assertFalse(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 70));
     }
 }

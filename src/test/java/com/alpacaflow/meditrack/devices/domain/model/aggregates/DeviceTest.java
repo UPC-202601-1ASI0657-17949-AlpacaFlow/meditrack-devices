@@ -7,6 +7,8 @@ import com.alpacaflow.meditrack.devices.devices.domain.model.entities.*;
 import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.EDeviceStatus;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class DeviceTest {
@@ -64,5 +66,37 @@ class DeviceTest {
         assertEquals(2,
                 device.getMeasurementsOfType(HeartRateMeasurement.class).size());
 
+    }
+
+    @Test
+    void shouldRemoveOldestMeasurementWhenRetentionLimitReached() {
+        var device = new Device("Watch", 1L);
+
+        for (int i = 0; i < Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE; i++) {
+            var measurement = new HeartRateMeasurement(60 + i);
+            measurement.setMeasuredAt(LocalDateTime.now().minusMinutes(Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE - i));
+            device.addHeartRateMeasurement(measurement);
+        }
+
+        device.removeOldestMeasurementOfType(HeartRateMeasurement.class);
+
+        assertEquals(Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE - 1, device.getHeartRateMeasurements().size());
+        assertEquals(61, device.getHeartRateMeasurements().getFirst().getBpm());
+        assertFalse(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 60));
+    }
+
+    @Test
+    void shouldKeepRecentMeasurementsWhenAddingWithinRetentionLimit() {
+        var device = new Device("Watch", 1L);
+
+        for (int i = 0; i < 7; i++) {
+            device.addHeartRate(70 + i);
+        }
+
+        device.addHeartRate(90);
+
+        assertEquals(8, device.getHeartRateMeasurements().size());
+        assertTrue(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 90));
+        assertTrue(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 76));
     }
 }

@@ -124,8 +124,8 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     @Override
     public Optional<Device> handle(AddBloodPressureMeasurementToDeviceCommand command) {
         var device = getDeviceOrThrow(command.deviceId());
-        if (device.existsMoreThanWeeklyMeasurementsOfType(BloodPressureMeasurement.class)) {
-            device.removeLastMeasurementOfType(BloodPressureMeasurement.class);
+        if (device.exceedsMeasurementRetentionOfType(BloodPressureMeasurement.class)) {
+            device.removeOldestMeasurementOfType(BloodPressureMeasurement.class);
         }
         addBloodPressureMeasurement(device, command.diastolic(), command.systolic());
         saveDevice(device);
@@ -135,8 +135,8 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     @Override
     public Optional<Device> handle(AddHeartRateMeasurementToDeviceCommand command) {
         var device = getDeviceOrThrow(command.deviceId());
-        if (device.existsMoreThanWeeklyMeasurementsOfType(HeartRateMeasurement.class)) {
-            device.removeLastMeasurementOfType(HeartRateMeasurement.class);
+        if (device.exceedsMeasurementRetentionOfType(HeartRateMeasurement.class)) {
+            device.removeOldestMeasurementOfType(HeartRateMeasurement.class);
         }
         var thresholds = patientThresholdResolver.resolveForDevice(device);
         addHeartRateMeasurement(device, command.bpm(), thresholds);
@@ -147,8 +147,8 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     @Override
     public Optional<Device> handle(AddTemperatureMeasurementToDeviceCommand command) {
         var device = getDeviceOrThrow(command.deviceId());
-        if (device.existsMoreThanWeeklyMeasurementsOfType(TemperatureMeasurement.class)) {
-            device.removeLastMeasurementOfType(TemperatureMeasurement.class);
+        if (device.exceedsMeasurementRetentionOfType(TemperatureMeasurement.class)) {
+            device.removeOldestMeasurementOfType(TemperatureMeasurement.class);
         }
         var thresholds = patientThresholdResolver.resolveForDevice(device);
         addTemperatureMeasurement(device, command.celsius(), thresholds);
@@ -159,8 +159,8 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     @Override
     public Optional<Device> handle(AddOxygenMeasurementToDeviceCommand command) {
         var device = getDeviceOrThrow(command.deviceId());
-        if (device.existsMoreThanWeeklyMeasurementsOfType(OxygenMeasurement.class)) {
-            device.removeLastMeasurementOfType(OxygenMeasurement.class);
+        if (device.exceedsMeasurementRetentionOfType(OxygenMeasurement.class)) {
+            device.removeOldestMeasurementOfType(OxygenMeasurement.class);
         }
         var thresholds = patientThresholdResolver.resolveForDevice(device);
         addOxygenMeasurement(device, command.spo2(), thresholds);

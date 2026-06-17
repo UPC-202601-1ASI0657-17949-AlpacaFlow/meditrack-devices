@@ -11,6 +11,7 @@ import lombok.Getter;
 import org.apache.logging.log4j.util.Strings;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /*** Device aggregate root
@@ -22,6 +23,8 @@ import java.util.List;
 @Getter
 @Entity
 public class Device extends AuditableAbstractAggregateRoot<Device> {
+    public static final int MAX_RETAINED_MEASUREMENTS_PER_TYPE = 100;
+
     @Column(nullable = false)
     private String model;
 
@@ -155,25 +158,28 @@ public class Device extends AuditableAbstractAggregateRoot<Device> {
     }
 
     /**
-     * Check if there are more than 7 measurements of a specific type
-     * @param type The class type of the measurement
-     * @return true if more than 7 measurements exist
+     * Check if a new measurement of the given type would exceed the retention window.
      */
-    public <T extends Measurement> boolean existsMoreThanWeeklyMeasurementsOfType(Class<T> type) {
-        return measurements.stream()
-                .filter(type::isInstance)
-                .count() > 7;
+    public <T extends Measurement> boolean exceedsMeasurementRetentionOfType(Class<T> type) {
+        return countMeasurementsOfType(type) >= MAX_RETAINED_MEASUREMENTS_PER_TYPE;
     }
 
     /**
-     * Remove the last measurement of a specific type
-     * @param type The class type of the measurement
+     * Remove the oldest measurement of a specific type (by measuredAt, then insertion order).
      */
-    public <T extends Measurement> void removeLastMeasurementOfType(Class<T> type) {
+    public <T extends Measurement> void removeOldestMeasurementOfType(Class<T> type) {
         measurements.stream()
                 .filter(type::isInstance)
-                .reduce((first, second) -> second)
+                .min(Comparator
+                        .comparing(Measurement::getMeasuredAt)
+                        .thenComparingInt(measurements::indexOf))
                 .ifPresent(measurements::remove);
+    }
+
+    private <T extends Measurement> long countMeasurementsOfType(Class<T> type) {
+        return measurements.stream()
+                .filter(type::isInstance)
+                .count();
     }
 }
 
