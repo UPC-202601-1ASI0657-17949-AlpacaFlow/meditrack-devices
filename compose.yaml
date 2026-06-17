@@ -18,6 +18,10 @@ services:
     - DB_URL=${DB_URL}
     - DB_USERNAME=${DB_USERNAME}
     - DB_PASSWORD=${DB_PASSWORD}
+    - CLINICAL_SERVICE_URL=${CLINICAL_SERVICE_URL:-https://meditrack-clinical-hph0avgbe2ejbyew.eastus-01.azurewebsites.net}
+    - CLINICAL_THRESHOLD_CACHE_TTL_SECONDS=${CLINICAL_THRESHOLD_CACHE_TTL_SECONDS:-120}
+    - CLINICAL_CONNECT_TIMEOUT_SECONDS=${CLINICAL_CONNECT_TIMEOUT_SECONDS:-3}
+    - CLINICAL_READ_TIMEOUT_SECONDS=${CLINICAL_READ_TIMEOUT_SECONDS:-5}
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
