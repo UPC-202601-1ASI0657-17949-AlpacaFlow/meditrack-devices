@@ -22,6 +22,18 @@ services:
     - CLINICAL_THRESHOLD_CACHE_TTL_SECONDS=${CLINICAL_THRESHOLD_CACHE_TTL_SECONDS:-120}
     - CLINICAL_CONNECT_TIMEOUT_SECONDS=${CLINICAL_CONNECT_TIMEOUT_SECONDS:-3}
     - CLINICAL_READ_TIMEOUT_SECONDS=${CLINICAL_READ_TIMEOUT_SECONDS:-5}
+    - MQTT_ENABLED=${MQTT_ENABLED:-false}
+    - MQTT_BROKER_URL=${MQTT_BROKER_URL:-tcp://meditrack-mosquitto:1883}
+    - MQTT_TELEMETRY_TOPIC=${MQTT_TELEMETRY_TOPIC:-meditrack/devices/telemetry}
+    - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-meditrack-devices}
+    networks:
+      - default
+      - meditrack-mqtt
+
+networks:
+  meditrack-mqtt:
+    external: true
+    name: meditrack-mqtt-broker_default
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
