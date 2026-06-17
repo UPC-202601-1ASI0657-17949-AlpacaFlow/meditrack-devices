@@ -81,7 +81,7 @@ class DeviceTest {
         device.removeOldestMeasurementOfType(HeartRateMeasurement.class);
 
         assertEquals(Device.MAX_RETAINED_MEASUREMENTS_PER_TYPE - 1, device.getHeartRateMeasurements().size());
-        assertEquals(61, device.getHeartRateMeasurements().getFirst().getBpm());
+        assertEquals(61, device.getHeartRateMeasurements().get(0).getBpm());
         assertFalse(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 60));
     }
 
