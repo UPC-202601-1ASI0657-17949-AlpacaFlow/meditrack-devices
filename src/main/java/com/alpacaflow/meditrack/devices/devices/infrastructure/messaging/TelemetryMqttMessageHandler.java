@@ -23,11 +23,10 @@ public class TelemetryMqttMessageHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(TelemetryMqttMessageHandler.class);
 
     private final DeviceCommandService deviceCommandService;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public TelemetryMqttMessageHandler(DeviceCommandService deviceCommandService, ObjectMapper objectMapper) {
+    public TelemetryMqttMessageHandler(DeviceCommandService deviceCommandService) {
         this.deviceCommandService = deviceCommandService;
-        this.objectMapper = objectMapper;
     }
 
     @ServiceActivator(inputChannel = "mqttTelemetryInputChannel")
