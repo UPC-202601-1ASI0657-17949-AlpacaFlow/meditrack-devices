@@ -99,4 +99,30 @@ class DeviceTest {
         assertTrue(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 90));
         assertTrue(device.getHeartRateMeasurements().stream().anyMatch(m -> m.getBpm() == 76));
     }
+
+    @Test
+    void shouldAssignHolderWhenDeviceIsUnassigned() {
+        var device = new Device();
+
+        device.assignHolder(22L);
+
+        assertEquals(22L, device.getHolder().holderId());
+        assertEquals("SeniorCitizen", device.getHolder().holderType());
+    }
+
+    @Test
+    void shouldIgnoreAssignHolderWhenAlreadyAssignedToSameHolder() {
+        var device = new Device("Watch", 22L);
+
+        device.assignHolder(22L);
+
+        assertEquals(22L, device.getHolder().holderId());
+    }
+
+    @Test
+    void shouldRejectAssignHolderWhenAlreadyAssignedToAnotherHolder() {
+        var device = new Device("Watch", 20L);
+
+        assertThrows(IllegalArgumentException.class, () -> device.assignHolder(22L));
+    }
 }

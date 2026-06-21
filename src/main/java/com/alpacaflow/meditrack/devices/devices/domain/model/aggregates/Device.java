@@ -68,6 +68,24 @@ public class Device extends AuditableAbstractAggregateRoot<Device> {
     }
 
     /**
+     * Assigns this device to a senior citizen when it is still unassigned.
+     */
+    public void assignHolder(Long holderId) {
+        if (holderId == null || holderId <= 0) {
+            throw new IllegalArgumentException("holderId must be a positive number");
+        }
+        Long currentHolderId = holder != null ? holder.holderId() : 0L;
+        if (currentHolderId != null && currentHolderId > 0) {
+            if (currentHolderId.equals(holderId)) {
+                return;
+            }
+            throw new IllegalArgumentException(
+                    "Device is already assigned to senior citizen %d".formatted(currentHolderId));
+        }
+        this.holder = new Holder(holderId, "SeniorCitizen");
+    }
+
+    /**
      * Add a heart rate measurement to the device
      * @param bpm The heart rate in beats per minute
      */

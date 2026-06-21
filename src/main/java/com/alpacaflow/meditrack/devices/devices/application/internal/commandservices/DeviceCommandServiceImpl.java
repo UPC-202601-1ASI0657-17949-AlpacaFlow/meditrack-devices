@@ -30,8 +30,12 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     @Override
     @Transactional
     public Long handle(RegisterDeviceCommand command) {
-        if (deviceRepository.existsById(command.deviceId())) {
-            return command.deviceId();
+        var existing = deviceRepository.findById(command.deviceId());
+        if (existing.isPresent()) {
+            var device = existing.get();
+            device.assignHolder(command.holderId());
+            deviceRepository.save(device);
+            return device.getId();
         }
         try {
             deviceRepository.insertWithId(command.deviceId(), command.model(), command.holderId());
