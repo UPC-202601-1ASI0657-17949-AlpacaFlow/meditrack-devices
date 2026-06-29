@@ -3,6 +3,7 @@ package com.alpacaflow.meditrack.devices.devices.domain.model.aggregates;
 
 import com.alpacaflow.meditrack.devices.devices.domain.model.commands.CreateAlertCommand;
 import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.EAlertType;
+import com.alpacaflow.meditrack.devices.devices.domain.model.valueobjects.EThresholdViolation;
 import com.alpacaflow.meditrack.devices.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -46,13 +47,14 @@ public class Alert extends AuditableAbstractAggregateRoot<Alert> {
      * @param deviceId The device ID that generated the alert
      * @param dataRegistered The measurement value that triggered the alert
      * @param measurementType The type of measurement
+     * @param violation Direction of the threshold breach, when applicable
      */
-    public Alert(Long deviceId, double dataRegistered, String measurementType) {
+    public Alert(Long deviceId, double dataRegistered, String measurementType, EThresholdViolation violation) {
         this();
         this.deviceId = deviceId;
         this.dataRegistered = dataRegistered;
         this.alertType = EAlertType.DANGER;
-        this.message = setMessage(measurementType);
+        this.message = setMessage(measurementType, violation);
         this.registeredAt = LocalDateTime.now();
     }
 
@@ -62,23 +64,47 @@ public class Alert extends AuditableAbstractAggregateRoot<Alert> {
      * @see CreateAlertCommand
      */
     public Alert(CreateAlertCommand command) {
-        this(command.deviceId(), command.dataRegistered(), command.measurementType());
+        this(command.deviceId(), command.dataRegistered(), command.measurementType(), command.violation());
     }
 
     /**
-     * Set the alert message based on measurement type
+     * Prefix used to deduplicate repeated alerts of the same kind within a cooldown window.
+     */
+    public static String dedupePrefix(String measurementType, EThresholdViolation violation) {
+        return switch (measurementType.toUpperCase()) {
+            case "TEMPERATURE" -> violation == EThresholdViolation.LOW
+                    ? "Low temperature recorded:"
+                    : "High temperature recorded:";
+            case "HEARTRATE", "HEART_RATE" -> violation == EThresholdViolation.LOW
+                    ? "Low heart rate recorded:"
+                    : "High heart rate recorded:";
+            case "OXYGEN" -> "Low oxygen saturation recorded:";
+            case "BLOODPRESSURE", "BLOOD_PRESSURE" -> "Abnormal blood pressure recorded:";
+            default -> "Unknown measurement type";
+        };
+    }
+
+    /**
+     * Set the alert message based on measurement type and violation direction
      * @param measurementType The type of measurement
+     * @param violation Direction of the threshold breach, when applicable
      * @return The formatted message
      */
-    private String setMessage(String measurementType) {
+    private String setMessage(String measurementType, EThresholdViolation violation) {
+        return setMessage(measurementType, violation, dataRegistered);
+    }
+
+    private static String setMessage(String measurementType, EThresholdViolation violation, double value) {
         return switch (measurementType.toUpperCase()) {
-            case "TEMPERATURE" -> String.format("High temperature recorded: %.2f°C", dataRegistered);
-            case "HEARTRATE", "HEART_RATE" -> String.format("Abnormal heart rate recorded: %.0f bpm", dataRegistered);
-            case "OXYGEN" -> String.format("Low oxygen saturation recorded: %.0f%%", dataRegistered);
-            case "BLOODPRESSURE", "BLOOD_PRESSURE" -> String.format("Abnormal blood pressure recorded: %.0f mmHg", dataRegistered);
+            case "TEMPERATURE" -> violation == EThresholdViolation.LOW
+                    ? String.format("Low temperature recorded: %.2f°C", value)
+                    : String.format("High temperature recorded: %.2f°C", value);
+            case "HEARTRATE", "HEART_RATE" -> violation == EThresholdViolation.LOW
+                    ? String.format("Low heart rate recorded: %.0f bpm", value)
+                    : String.format("High heart rate recorded: %.0f bpm", value);
+            case "OXYGEN" -> String.format("Low oxygen saturation recorded: %.0f%%", value);
+            case "BLOODPRESSURE", "BLOOD_PRESSURE" -> String.format("Abnormal blood pressure recorded: %.0f mmHg", value);
             default -> "Unknown measurement type";
         };
     }
 }
-
-

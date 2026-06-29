@@ -27,7 +27,8 @@ public class AlertCreatedEventHandler {
         var command = new CreateAlertCommand(
                 event.deviceId(),
                 event.dataRegistered(),
-                event.measurementType()
+                event.measurementType(),
+                event.violation()
         );
         alertCommandService.handle(command);
     }

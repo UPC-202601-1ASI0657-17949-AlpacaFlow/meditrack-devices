@@ -25,4 +25,14 @@ public record HeartRateThreshold(int min, int max) {
     public boolean isViolatedBy(int value) {
         return value < min || value > max;
     }
+
+    public EThresholdViolation violationOf(int value) {
+        if (value < min) {
+            return EThresholdViolation.LOW;
+        }
+        if (value > max) {
+            return EThresholdViolation.HIGH;
+        }
+        throw new IllegalArgumentException("Value %d is within the safe range".formatted(value));
+    }
 }

@@ -2,8 +2,11 @@ package com.alpacaflow.meditrack.devices.devices.infrastructure.persistence.jpa.
 
 import com.alpacaflow.meditrack.devices.devices.domain.model.aggregates.Alert;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -17,4 +20,17 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
      * @return List of alerts for the device
      */
     List<Alert> findByDeviceId(Long deviceId);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END
+            FROM Alert a
+            WHERE a.deviceId = :deviceId
+              AND a.message LIKE CONCAT(:messagePrefix, '%')
+              AND a.registeredAt >= :since
+            """)
+    boolean existsRecentAlertWithPrefix(
+            @Param("deviceId") Long deviceId,
+            @Param("messagePrefix") String messagePrefix,
+            @Param("since") LocalDateTime since
+    );
 }

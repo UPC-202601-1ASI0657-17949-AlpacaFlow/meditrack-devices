@@ -19,4 +19,11 @@ public record OxygenThreshold(int min) {
     public boolean isViolatedBy(int value) {
         return value < min;
     }
+
+    public EThresholdViolation violationOf(int value) {
+        if (value < min) {
+            return EThresholdViolation.LOW;
+        }
+        throw new IllegalArgumentException("Value %d is within the safe range".formatted(value));
+    }
 }

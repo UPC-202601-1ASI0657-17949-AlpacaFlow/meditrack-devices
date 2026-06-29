@@ -186,25 +186,43 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     }
 
     private void addHeartRateMeasurement(Device device, int bpm, PatientThresholdSnapshot thresholds) {
-        var measurement = new HeartRateMeasurement(bpm, thresholds.heartRateThreshold());
+        var threshold = thresholds.heartRateThreshold();
+        var measurement = new HeartRateMeasurement(bpm, threshold);
         if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), bpm, measurement.getType().toString()));
+            device.addDomainEvent(new AlertCreatedEvent(
+                    device.getId(),
+                    bpm,
+                    measurement.getType().toString(),
+                    threshold.violationOf(bpm)
+            ));
         }
         device.addHeartRateMeasurement(measurement);
     }
 
     private void addTemperatureMeasurement(Device device, double celsius, PatientThresholdSnapshot thresholds) {
-        var measurement = new TemperatureMeasurement(celsius, thresholds.temperatureThreshold());
+        var threshold = thresholds.temperatureThreshold();
+        var measurement = new TemperatureMeasurement(celsius, threshold);
         if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), celsius, "TEMPERATURE"));
+            device.addDomainEvent(new AlertCreatedEvent(
+                    device.getId(),
+                    celsius,
+                    "TEMPERATURE",
+                    threshold.violationOf(celsius)
+            ));
         }
         device.addTemperatureMeasurement(measurement);
     }
 
     private void addOxygenMeasurement(Device device, int spo2, PatientThresholdSnapshot thresholds) {
-        var measurement = new OxygenMeasurement(spo2, thresholds.oxygenThreshold());
+        var threshold = thresholds.oxygenThreshold();
+        var measurement = new OxygenMeasurement(spo2, threshold);
         if (measurement.surpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), spo2, "OXYGEN"));
+            device.addDomainEvent(new AlertCreatedEvent(
+                    device.getId(),
+                    spo2,
+                    "OXYGEN",
+                    threshold.violationOf(spo2)
+            ));
         }
         device.addOxygenMeasurement(measurement);
     }
@@ -212,10 +230,10 @@ public class DeviceCommandServiceImpl implements DeviceCommandService {
     private void addBloodPressureMeasurement(Device device, int diastolic, int systolic) {
         var measurement = new BloodPressureMeasurement(diastolic, systolic);
         if (measurement.diastolicSurpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), diastolic, "BLOOD_PRESSURE"));
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), diastolic, "BLOOD_PRESSURE", null));
         }
         if (measurement.systolicSurpassesThreshold()) {
-            device.addDomainEvent(new AlertCreatedEvent(device.getId(), systolic, "BLOOD_PRESSURE"));
+            device.addDomainEvent(new AlertCreatedEvent(device.getId(), systolic, "BLOOD_PRESSURE", null));
         }
         device.addBloodPressure(diastolic, systolic);
     }

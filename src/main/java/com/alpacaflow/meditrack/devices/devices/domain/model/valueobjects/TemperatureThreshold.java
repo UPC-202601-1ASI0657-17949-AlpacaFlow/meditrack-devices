@@ -25,4 +25,14 @@ public record TemperatureThreshold(double min, double max) {
     public boolean isViolatedBy(double value) {
         return value < min || value > max;
     }
+
+    public EThresholdViolation violationOf(double value) {
+        if (value < min) {
+            return EThresholdViolation.LOW;
+        }
+        if (value > max) {
+            return EThresholdViolation.HIGH;
+        }
+        throw new IllegalArgumentException("Value %.2f is within the safe range".formatted(value));
+    }
 }
